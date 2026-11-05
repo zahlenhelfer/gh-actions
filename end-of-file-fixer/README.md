@@ -4,9 +4,6 @@ A reusable composite GitHub Action that makes sure the files changed in a pull r
 one newline. By default it annotates files with a wrong ending and fails the job. With `fix: true`, it
 repairs them in the workspace instead.
 
-**Status:** not released yet. The examples below use the `end-of-file-fixer/v1` tag, which doesn't exist
-until the first release.
-
 ## Usage
 
 Add a workflow to the repository you want to check, for example
