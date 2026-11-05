@@ -21,7 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Wie ein Repository ohne eigene Config, damit die geteilten Regeln greifen.
+      # Simuliert ein Repository ohne eigene Config: Die .yamllint.yml im Root hätte
+      # sonst Vorrang vor den geteilten Regeln und würde die Fixtures ignorieren.
+      # Betrifft nur den Checkout dieses Jobs.
       - name: Remove the repository config
         run: rm .yamllint.yml
 
