@@ -9,9 +9,6 @@ affected files. Every repository gets the same shared rules, and a repository ca
 - **If yamllint itself fails** (for example, a missing directory or a broken config), the job fails and
   the details are in the step log.
 
-**Status:** not released yet. The examples below use the `yaml-lint/v1` tag, which doesn't exist until
-the first release. See [Releasing](#releasing).
-
 ## Usage
 
 Add a workflow to the repository you want to lint, for example `.github/workflows/yaml-lint.yml`:
@@ -168,5 +165,6 @@ git push -f origin yaml-lint/v1
 Use a new major version for changes that can fail a previously passing repository, such as stricter
 shared rules or a yamllint update with new defaults.
 
-**Before the first release:** test a slash-style tag in a real `uses:` reference. This format hasn't been
-verified on GitHub yet. If it doesn't work, use `yaml-lint-v1` instead and update this README.
+**Not yet confirmed in a workflow:** the GitHub API resolves slash-style tags, but no workflow has used
+one in a `uses:` reference yet. If it fails with a resolve or download error, switch to `yaml-lint-v1`
+and update this README.
