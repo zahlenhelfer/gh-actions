@@ -100,3 +100,67 @@ jobs:
           test "$INJECTION" = failure
           test "$OVERRIDE" = failure
           test ! -e injected
+
+  end-of-file-fixer-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run unit tests
+        run: python3 -m unittest discover -s end-of-file-fixer/tests
+
+  end-of-file-fixer-behavior:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Real changed files are correct
+        uses: ./end-of-file-fixer
+
+      # Ein PR kann keine kaputten Dateien mitbringen, ohne dass der Schritt oben fehlschlägt.
+      # Deshalb erzeugen wir sie hier und lassen einen Stub sie als geänderte Dateien melden.
+      - name: Create bad files and a stub gh
+        run: |
+          printf 'no newline' > missing-newline.txt
+          printf 'extra newlines\n\n\n' > 'extra newlines.txt'
+          mkdir "$RUNNER_TEMP/stub"
+          printf '#!/bin/sh\nprintf "missing-newline.txt\\nextra newlines.txt\\n"\n' > "$RUNNER_TEMP/stub/gh"
+          chmod +x "$RUNNER_TEMP/stub/gh"
+          echo "$RUNNER_TEMP/stub" >> "$GITHUB_PATH"
+
+      - name: Check mode fails on bad files
+        id: check
+        continue-on-error: true
+        uses: ./end-of-file-fixer
+
+      - name: Check mode leaves files unchanged
+        run: |
+          test "$(cat missing-newline.txt)" = 'no newline'
+          test "$(wc -l < 'extra newlines.txt')" -eq 3
+
+      - name: The exclude input skips bad files
+        uses: ./end-of-file-fixer
+        with:
+          exclude: '^(missing-newline|extra newlines)\.txt$'
+
+      - name: Fix mode repairs bad files
+        id: fix
+        uses: ./end-of-file-fixer
+        with:
+          fix: true
+
+      - name: Check mode passes on repaired files
+        id: recheck
+        uses: ./end-of-file-fixer
+
+      - name: Check the results
+        env:
+          CHECK: ${{ steps.check.outcome }}
+        run: |
+          set -x
+          test "$CHECK" = failure
+          test "$(wc -l < missing-newline.txt)" -eq 1
+          test "$(wc -l < 'extra newlines.txt')" -eq 1

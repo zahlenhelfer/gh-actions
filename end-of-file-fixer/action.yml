@@ -1,0 +1,48 @@
+---
+name: end-of-file-fixer
+description: Make sure files changed in a pull request end with exactly one newline.
+author: Marcus Ross
+
+inputs:
+  fix:
+    description: Set to true to repair files in the workspace instead of failing the job.
+    required: false
+    default: 'false'
+  exclude:
+    description: Python regular expression. Paths with a match anywhere in them are skipped.
+    required: false
+    default: ''
+  github-token:
+    description: Token used to list the files changed in the pull request.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check file endings
+      shell: bash
+      env:
+        FIX: ${{ inputs.fix }}
+        EXCLUDE: ${{ inputs.exclude }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        if [ -z "$PR_NUMBER" ]; then
+          echo "::error title=end-of-file-fixer::This action only supports pull_request events"
+          exit 1
+        fi
+
+        # Die API liefert dieselbe Liste, egal welcher Commit ausgecheckt ist.
+        files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+          --jq '.[] | select(.status != "removed") | .filename')
+
+        args=()
+        if [ "$FIX" = "true" ]; then
+          args+=(--fix)
+        fi
+        if [ -n "$EXCLUDE" ]; then
+          args+=("--exclude=$EXCLUDE")
+        fi
+
+        printf '%s\n' "$files" | python3 "$GITHUB_ACTION_PATH/end_of_file.py" "${args[@]}"
