@@ -1,0 +1,102 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  self-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./yaml-lint
+
+  yaml-lint-behavior:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Simuliert ein Repository ohne eigene Config: Die .yamllint.yml im Root hätte
+      # sonst Vorrang vor den geteilten Regeln und würde die Fixtures ignorieren.
+      # Betrifft nur den Checkout dieses Jobs.
+      - name: Remove the repository config
+        run: rm .yamllint.yml
+
+      - name: Shared rules allow on and long lines
+        id: clean
+        continue-on-error: true
+        uses: ./yaml-lint
+        with:
+          directory: yaml-lint/tests/fixtures/clean
+
+      - name: Warnings do not fail
+        id: warning
+        continue-on-error: true
+        uses: ./yaml-lint
+        with:
+          directory: yaml-lint/tests/fixtures/warning
+
+      - name: Errors fail, path with a space
+        id: error
+        continue-on-error: true
+        uses: ./yaml-lint
+        with:
+          directory: yaml-lint/tests/fixtures/with space
+
+      - name: The config input is honored
+        id: config
+        continue-on-error: true
+        uses: ./yaml-lint
+        with:
+          directory: yaml-lint/tests/fixtures/with space
+          config: yaml-lint/tests/relaxed-config.yml
+
+      - name: A missing directory fails
+        id: missing
+        continue-on-error: true
+        uses: ./yaml-lint
+        with:
+          directory: yaml-lint/tests/fixtures/missing
+
+      - name: Input is not executed as shell
+        id: injection
+        continue-on-error: true
+        uses: ./yaml-lint
+        with:
+          directory: 'missing; touch injected; true'
+
+      - name: Add a repository config
+        run: |
+          printf -- '---\nextends: default\n' > .yamllint.yml
+
+      - name: A repository config replaces the shared rules
+        id: override
+        continue-on-error: true
+        uses: ./yaml-lint
+        with:
+          directory: yaml-lint/tests/fixtures/clean
+
+      - name: Check the results
+        env:
+          CLEAN: ${{ steps.clean.outcome }}
+          WARNING: ${{ steps.warning.outcome }}
+          ERROR: ${{ steps.error.outcome }}
+          CONFIG: ${{ steps.config.outcome }}
+          MISSING: ${{ steps.missing.outcome }}
+          INJECTION: ${{ steps.injection.outcome }}
+          OVERRIDE: ${{ steps.override.outcome }}
+        run: |
+          set -x
+          test "$CLEAN" = success
+          test "$WARNING" = success
+          test "$ERROR" = failure
+          test "$CONFIG" = success
+          test "$MISSING" = failure
+          test "$INJECTION" = failure
+          test "$OVERRIDE" = failure
+          test ! -e injected

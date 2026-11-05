@@ -1,51 +1,33 @@
+---
 name: yaml-lint
-description: This action performs a yaml lint check on the specified directory.
+description: Lint YAML files with yamllint and report findings as GitHub annotations.
 author: Marcus Ross
-version: 1.0.0
 
 inputs:
   directory:
-    description: The directory to run the yaml lint check on.
+    description: The file or directory to lint.
     required: false
     default: '.'
-
-outputs: {}
+  config:
+    description: Path to a yamllint config file. If empty, a repository config or the shared default is used.
+    required: false
+    default: ''
 
 runs:
   using: "composite"
   steps:
-    - name: Install yamllint
-      shell: bash
-      run: |
-        python -m pip install --upgrade pip
-        pip install yamllint
-
     - name: Run yamllint
-      id: lint
       shell: bash
+      env:
+        INPUT_DIRECTORY: ${{ inputs.directory }}
+        INPUT_CONFIG: ${{ inputs.config }}
       run: |
-        # Wir nutzen das 'parsable' Format. 
-        # Wir leiten stderr und stdout in eine Datei.
-        # '|| true' verhindert, dass der Workflow hier sofort stoppt, 
-        # damit wir die Datei im nächsten Schritt verarbeiten können.
-        yamllint ${{ inputs.directory }} --format parsable > yamllint.txt 2>&1 || echo "lint_failed=true" >> $GITHUB_OUTPUT
+        # Greift nur, wenn das Repository keine eigene .yamllint-Datei hat.
+        export YAMLLINT_CONFIG_FILE="$GITHUB_ACTION_PATH/default-config.yml"
 
-    - name: Create GitHub Annotations
-      if: steps.lint.outputs.lint_failed == 'true'
-      shell: bash
-      run: |
-        # Wir lesen die yamllint.txt und wandeln sie in GitHub Workflow Commands um.
-        # Format von yamllint parsable: file:line:col: message
-        while read -r line; do
-          # Extrahiere Datei, Zeile und Nachricht
-          file=$(echo "$line" | cut -d: -f1)
-          line_num=$(echo "$line" | cut -d: -f2)
-          col=$(echo "$line" | cut -d: -f3)
-          msg=$(echo "$line" | cut -d: -f4-)
-          
-          # GitHub Command für Warning/Error Annotationen
-          echo "::error file=$file,line=$line_num,col=$col::$msg"
-        done < yamllint.txt
-        
-        # Am Ende den Job explizit als fehlgeschlagen markieren
-        exit 1
+        args=(--format github)
+        if [ -n "$INPUT_CONFIG" ]; then
+          args+=(--config-file "$INPUT_CONFIG")
+        fi
+
+        pipx run --spec "yamllint==1.38.0" yamllint "${args[@]}" -- "$INPUT_DIRECTORY"

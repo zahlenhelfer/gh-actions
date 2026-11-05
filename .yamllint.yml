@@ -1,7 +1,4 @@
 ---
-extends: default
-rules:
-  line-length:
-    max: 120
-  truthy:
-    check-keys: false
+extends: yaml-lint/default-config.yml
+ignore: |
+  yaml-lint/tests/fixtures/
